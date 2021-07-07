@@ -40,11 +40,16 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
 
 ```{r, include=FALSE}
 wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
-df <- fread(wf) %>% mutate(`Existing client` = as.factor(`Existing client`),
+#df <- fread('unzip -cq C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.zip') 
+df <- fread(wf) %>% mutate(
   Datetime =as.POSIXct(as.numeric(as.character(Timestamp)), origin="1970-01-01", tz="GMT"), 
                            `Product Price` = as.numeric(`Product Price`), 
                            `Product quantity` = as.numeric(`Product quantity`),
-  Date = as.Date(Date, "%d/%m/%y"))
+  Date = as.Date(Date, "%d/%m/%y"), 
+  `Device type` = if_else(`Device type` == 'Unknown', "Android app", `Device type`),
+  `Browser family` = if_else(`Browser family` == 'other', "Android app", `Browser family`)
+  ) 
+  
 df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket', 'Sales'))
 
 
@@ -106,7 +111,7 @@ df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser fam
     Usage < 100  ~ 'small',
     Usage > 100 ~ `Browser family`)) %>% 
   filter(`Browser family` != 'small') %>% 
-  ggplot(aes(y = Usage, x = reorder(`Browser family`, desc(Usage)), label = Usage , fill = reorder(`Browser family`, desc(Usage)))) + 
+  ggplot(aes(y = Usage, x = reorder(`Browser family`, Usage), label = Usage , fill = reorder(`Browser family`, Usage))) + 
   geom_col() +
   geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
   ggtitle('Distribution of browser families') + 
@@ -132,15 +137,17 @@ df  %>% filter( `Browser family` != 'NULL', `Browser family` != 'other') %>%
   group_by(`Browser family`, `Event type`) %>% 
   summarise(Usage = n()) %>% 
   filter(`Browser family` %in%  list_bro) %>% 
-  ggplot(aes(y = Usage, x = reorder(`Browser family`, desc(Usage)), label = Usage , fill = reorder(`Browser family`, desc(Usage)))) + 
+  ggplot(aes(x = Usage, y = reorder(`Browser family`, Usage), label = Usage , fill = reorder(`Browser family`, Usage))) + 
   geom_col() +
-  geom_text( position = position_dodge(width = 0.9), vjust = -0.3) +
+  geom_text( position = position_dodge(width = 0.9)) +
   ggtitle('Distribution of browser families over actions') + 
   labs(x = "Number of sales", fill = 'Browser family')  + facet_wrap(~`Event type`)+
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-Some problems with basketing in Android App 
+Some problems with basketing in Android App.
+
+**Recommendation:** technical specialist should check and resolve problems with adding a product in a basket in Android app
 
 
 ```{r}
@@ -182,7 +189,7 @@ df %>% filter(`User location` != "Unknown") %>%  group_by(`User location`, Date)
 ```{r}
 
 df %>% 
-ggplot(aes(x = `Existing client`)) + geom_histogram(stat="count") #+ facet_grid(~Device_source)
+ggplot(aes(x = `Existing client`, fill = `Existing client`)) + geom_histogram(stat="count") #+ facet_grid(~Device_source)
 ```
 
 ```{r}
@@ -221,6 +228,7 @@ df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %
 df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
   ggplot(aes(x = Date, y = Revenue))+ geom_line() + facet_wrap(~`Product category`)
 ```
+
 # 5. Sales funnel
 
 ```{r}

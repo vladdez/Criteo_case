@@ -39,22 +39,31 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
 
 ```
 
+
+
 ```{r, include=FALSE}
-df %>% 
+wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
+#df <- fread('unzip -cq C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.zip') 
+raw <- fread(wf) 
+
+
+```
+
+```{r, include=FALSE}
+raw %>% 
   filter(Environment == 'app_android') %>% 
   group_by(`Device type`) %>% summarise(n = n())
 
-df %>% 
+raw %>% 
   filter(`Device type` == 'Unknown') %>% nrow()
 
-df %>% 
+raw %>% 
   filter(`Browser family` == 'other') %>% nrow()
 
 ```
 
 ```{r, include=FALSE}
-wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
-df <- fread(wf) %>% mutate(
+df <- raw %>% mutate(
   Datetime =as.POSIXct(as.numeric(as.character(Timestamp)), origin="1970-01-01", tz="GMT"), 
                            `Product Price` = as.numeric(`Product Price`), 
                            `Product quantity` = as.numeric(`Product quantity`),
@@ -64,7 +73,6 @@ df <- fread(wf) %>% mutate(
   ) 
   
 df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket', 'Sales'))
-
 
 ```
 
@@ -77,7 +85,7 @@ head(df)
 
 # 1. Salary change over time
 
-```{r}
+```{r, include=FALSE}
 df_rev <- df %>% filter(`Event type` == 'Sales') %>% group_by(Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`))  
 df_rev
 ```
@@ -95,16 +103,31 @@ ggplot(df_rev, aes(x = Date, y = Revenue )) + geom_line() +
     stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
-  )
-  #stat_valleys(geom = "text", colour = "blue",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m", span = 1801,  ignore_threshold = 0.99, angle = 45)
+  ) +
+  stat_valleys(geom = "text", colour = "blue",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m", span = 1801,  ignore_threshold = 0.99) + ggtitle('Revenue change over year')
 
 ```
+```{r}
+mean(df_rev$Revenue)
+median(df_rev$Revenue)
+min(df_rev$Revenue)
+max(df_rev$Revenue)
+```
+
+
+The figure above demonstrates the revenue change over a year. There are:
+  1. an increase of revenue in October and December with two peaks above 6000$ per day in 23.11 (6265\$) and 11.12. 
+  2. a huge peak near to 6000$ per day in 30.04
+  3. average sales per day are around 1500 $
+  4. a revenue decrease in summer months with a lowest sales 154 in 16.07. 
 
 # 2. Device usage change over year
 
+Let's observe annual dynamics of revenue for every type of devices
 
-```{r}
-df_rev %>% filter(`Device type` != 'Unknown') %>% ggplot(aes(x = Date, y = Revenue )) +
+```{r, eval = FALSE}
+filter(`Event type` == 'Sales') %>% group_by(Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`))   %>% filter(`Device type` != 'Unknown') %>% 
+  ggplot(aes(x = Date, y = Revenue, color = `Device type`)) +
     geom_line() + facet_wrap(~`Device type`)+
   theme_minimal() +    stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
@@ -112,45 +135,133 @@ df_rev %>% filter(`Device type` != 'Unknown') %>% ggplot(aes(x = Date, y = Reven
   )
 ```
 
-
 ```{r}
 df %>% 
   filter(`Event type` == 'Product', `Device type` != 'Unknown') %>% 
   group_by(Date) %>% mutate(Visits = n()) %>%  ggplot(aes(x = Date, y = Visits, color = `Device type` )) + geom_line() + facet_wrap(~`Device type`) +
   theme_minimal() + stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
-    method = "lm")
+    method = "lm") + ggtitle('Annual sales via different devices')
 ```
-Where users visit product pages? 
+
+This analyses does not gitve as meaningful information except the necessity to check what happens on summer with Android apps.
+
+Let's group different devices on four types: smartphones, tablets, Desktop and, special case, Android app.
 
 
 ```{r}
 df %>% 
-  filter(`Event type` == 'Product') %>% # , `Device type` != 'Unknown'
-  mutate(Device_source = case_when(
+  filter(`Event type` == 'Sales') %>% 
+  mutate(`Device group` = case_when(
     `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
     `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
     `Device type` == 'Android app' ~ 'Android app',
     `Device type` == 'Desktop' ~ 'Desktop'
   )) %>% 
-  group_by(Date, Device_source) %>% mutate(Visits = n()) %>%  
-  ggplot(aes(x = Date, y = Visits, color = `Device_source`)) + 
-  geom_line() + 
-  facet_wrap(~`Device_source`) +
-  theme_minimal() + stat_smooth(
+  group_by(Date, `Device group`) %>% mutate(Visits = n()) %>%  
+  ggplot(aes(x = Date, y = Visits, fill = `Device group`)) + 
+  geom_col() + 
+  #geom_line() +
+  facet_wrap(~`Device group`) +
+  theme_minimal() + ggtitle('Annual sales via different groups of devices') + 
+  stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
-    method = "lm")
+    method = "lm") + theme(plot.title = element_text(hjust = 0.5))
 ```
+
+```{r}
+df %>% 
+  filter(`Event type` == 'Sales') %>% 
+  mutate(`Device groups` = case_when(
+    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
+    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
+    `Device type` == 'Android app' ~ 'Android app',
+    `Device type` == 'Desktop' ~ 'Desktop'
+  )) %>% group_by(`Device groups`) %>%  summarise(Visits = n()) %>%    arrange(desc(Visits)) %>%
+  ggplot(aes(x = reorder(`Device groups`, Visits), y = Visits, label = Visits, fill = reorder(`Device groups`, Visits))) + 
+  geom_col() + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
+  theme_minimal() + ggtitle('Annual sales via different groups of devices') + labs(x = "Device groups", fill = "Device groups")
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+df %>% 
+  filter(`Event type` == 'Sales') %>% 
+  mutate(`Device groups` = case_when(
+    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
+    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
+    `Device type` == 'Android app' ~ 'Android app',
+    `Device type` == 'Desktop' ~ 'Desktop'
+  )) %>% group_by(`Device groups`) %>%   summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>%     arrange(desc(Revenue)) %>%
+  ggplot(aes(x = reorder(`Device groups`, Revenue), y = Revenue, label = Revenue, fill = reorder(`Device groups`, Revenue))) + 
+  geom_col() + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
+  theme_minimal() + ggtitle('Annual sales via different groups of devices') + 
+  labs(x = "Device groups", fill = "Device groups") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Here we may observe, that majority of sales happens via Desktop and, four time less, via Android App. 
+
+**Recommendations:**
+  1. Lessen add spending in tablets
+  2. Focus on Android apps on Mobile and make Desktop advertising the main target of campaigns.
 
 # 3. Apps VS Mobile Web
 
+```{r}
+df %>% 
+  #filter(`Event type` == 'Sales') %>% 
+  filter(`Device type` == 'Android app') %>% 
+  group_by(Date) %>% mutate(Visits = n()) %>%  
+  ggplot(aes(x = Date, y = Visits)) + geom_col() + facet_wrap(~`Event type`)
+
+```
+There is a lack of any information about sales and basketings in summer months for Android apps. 
+Also, there is no information on Product and Listing events in application at all. 
+
+```{r}
+df_rev1 <- df %>% filter(`Event type` == 'Sales')  %>%  filter(`Device type` != 'Android app') %>% group_by(Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`))  
+
+  ggplot(df_rev1, aes(x = Date, y = Revenue )) +
+  geom_line() + 
+  stat_peaks(colour = "red", span = 1201, ignore_threshold = 0.92) + 
+  stat_peaks(geom = "text", colour = "red", 
+             vjust = -0.5, x.label.fmt = "%d.%m", span = 1201, ignore_threshold = 0.92)  +
+ 
+  stat_peaks(span = 1201, color = "red", geom = "rug", sides = "b", ignore_threshold = 0.92)+
+  stat_valleys(colour = "blue", span = 1801,  ignore_threshold = 0.95) + 
+    stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "loess"
+  ) +
+  stat_valleys(geom = "text", colour = "blue",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m", span = 1801,  ignore_threshold = 0.99) + ggtitle('Revenue change over year')
+
+```
+
+```{r}
+mean(df_rev1$Revenue)
+median(df_rev1$Revenue)
+min(df_rev1$Revenue)
+max(df_rev1$Revenue)
+```
 
 
+
+Excluding Android app data we can observe that Summer drop of sales was not caused by troubles with Android app. 
+
+** Докрутить **
 
 
 ```{r}
 df %>% 
-#  filter(`Device type` != 'Unknown') %>% 
+  group_by(Date, Environment) %>% mutate(Visits = n()) %>%  
+  ggplot(aes(x = Date, y = Visits, color = `Environment`)) + 
+  geom_line() + 
+  facet_wrap(~`Environment`) + stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "lm")
+```
+```{r}
+df %>% 
   group_by(Date, Environment) %>% mutate(Visits = n()) %>%  
   ggplot(aes(x = Date, y = Visits, color = `Environment`)) + 
   geom_line() + 
@@ -159,5 +270,44 @@ df %>%
     method = "lm")
 ```
 
+We may observe that web purchasing is 3 times higher than appication sales and even rise by 2 times to the end of the year. 
+
+
+However, the main question is concerned on comparison of apllciations with mobile web, not web as it is.
+
+```{r}
+a <- df %>% 
+  mutate(`Device groups` = case_when(
+    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
+    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
+    `Device type` == 'Android app' ~ 'Android app',
+    `Device type` == 'Desktop' ~ 'Desktop'
+  )) %>% filter(`Device type` %in% c('Smartphone', 'Android app')) %>%  
+  group_by(`Device groups`, Date) %>%   summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
+  ggplot(aes(x = Date, y = Revenue, color = `Device groups`)) + 
+  geom_line() + 
+  facet_wrap(~`Device groups`) + stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "lm")
+```
+
+```{r}
+df %>% 
+  filter(`Event type` == 'Sales') %>% 
+  mutate(`Device groups` = case_when(
+    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
+    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
+    `Device type` == 'Android app' ~ 'Android app',
+    `Device type` == 'Desktop' ~ 'Desktop'
+  )) %>% group_by(`Device groups`) %>%   summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>%     arrange(desc(Revenue)) %>%
+  ggplot(aes(x = reorder(`Device groups`, Revenue), y = Revenue, label = Revenue, fill = reorder(`Device groups`, Revenue))) + 
+  geom_col() + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
+  theme_minimal() + ggtitle('Annual sales via different groups of devices') + 
+  labs(x = "Device groups", fill = "Device groups") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+**Recommendations:** company will obtain more revenue if focus web purchasing and spend less effort on promotion of application. 
 
 
