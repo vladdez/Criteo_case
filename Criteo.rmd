@@ -1,0 +1,163 @@
+---
+title: "Criteo Interview"
+author: "Vladimir Mikheev"
+date: "05 07 2021"
+output:
+  html_document:
+    code_download: yes
+    fontsize: 8pt
+    highlight: textmate
+    number_sections: no
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: no
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(dplyr)
+library(data.table)
+library(readr)
+library(lme4)
+library(broom)
+library(ggplot2)
+library(tidyr)
+library(arm)
+library(ggpmisc)
+
+
+remove_outliers <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+
+```
+
+```{r, include=FALSE}
+df %>% 
+  filter(Environment == 'app_android') %>% 
+  group_by(`Device type`) %>% summarise(n = n())
+
+df %>% 
+  filter(`Device type` == 'Unknown') %>% nrow()
+
+df %>% 
+  filter(`Browser family` == 'other') %>% nrow()
+
+```
+
+```{r, include=FALSE}
+wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
+df <- fread(wf) %>% mutate(
+  Datetime =as.POSIXct(as.numeric(as.character(Timestamp)), origin="1970-01-01", tz="GMT"), 
+                           `Product Price` = as.numeric(`Product Price`), 
+                           `Product quantity` = as.numeric(`Product quantity`),
+  Date = as.Date(Date, "%d/%m/%y"), 
+  `Device type` = if_else(`Device type` == 'Unknown', "Android app", `Device type`),
+  `Browser family` = if_else(`Browser family` == 'other', "Android app", `Browser family`)
+  ) 
+  
+df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket', 'Sales'))
+
+
+```
+
+```{r, include=FALSE}
+names(df)
+```
+```{r, include=FALSE}
+head(df)
+```
+
+# 1. Salary change over time
+
+```{r}
+df_rev <- df %>% filter(`Event type` == 'Sales') %>% group_by(Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`))  
+df_rev
+```
+
+
+```{r}
+
+ggplot(df_rev, aes(x = Date, y = Revenue )) + geom_line() + 
+  stat_peaks(colour = "red", span = 1201, ignore_threshold = 0.92) + 
+  stat_peaks(geom = "text", colour = "red", 
+             vjust = -0.5, x.label.fmt = "%d.%m", span = 1201, ignore_threshold = 0.92)  +
+ 
+  stat_peaks(span = 1201, color = "red", geom = "rug", sides = "b", ignore_threshold = 0.92)+
+  stat_valleys(colour = "blue", span = 1801,  ignore_threshold = 0.95) + 
+    stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "loess"
+  )
+  #stat_valleys(geom = "text", colour = "blue",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m", span = 1801,  ignore_threshold = 0.99, angle = 45)
+
+```
+
+# 2. Device usage change over year
+
+
+```{r}
+df_rev %>% filter(`Device type` != 'Unknown') %>% ggplot(aes(x = Date, y = Revenue )) +
+    geom_line() + facet_wrap(~`Device type`)+
+  theme_minimal() +    stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "loess"
+  )
+```
+
+
+```{r}
+df %>% 
+  filter(`Event type` == 'Product', `Device type` != 'Unknown') %>% 
+  group_by(Date) %>% mutate(Visits = n()) %>%  ggplot(aes(x = Date, y = Visits, color = `Device type` )) + geom_line() + facet_wrap(~`Device type`) +
+  theme_minimal() + stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "lm")
+```
+Where users visit product pages? 
+
+
+```{r}
+df %>% 
+  filter(`Event type` == 'Product') %>% # , `Device type` != 'Unknown'
+  mutate(Device_source = case_when(
+    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
+    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
+    `Device type` == 'Android app' ~ 'Android app',
+    `Device type` == 'Desktop' ~ 'Desktop'
+  )) %>% 
+  group_by(Date, Device_source) %>% mutate(Visits = n()) %>%  
+  ggplot(aes(x = Date, y = Visits, color = `Device_source`)) + 
+  geom_line() + 
+  facet_wrap(~`Device_source`) +
+  theme_minimal() + stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "lm")
+```
+
+# 3. Apps VS Mobile Web
+
+
+
+
+
+```{r}
+df %>% 
+#  filter(`Device type` != 'Unknown') %>% 
+  group_by(Date, Environment) %>% mutate(Visits = n()) %>%  
+  ggplot(aes(x = Date, y = Visits, color = `Environment`)) + 
+  geom_line() + 
+  facet_wrap(~`Environment`) + stat_smooth(
+    color = "#FC4E07", fill = "#FC4E07",
+    method = "lm")
+```
+
+
+
