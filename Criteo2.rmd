@@ -13,6 +13,7 @@ output:
     toc_float:
       collapsed: no
 ---
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 library(dplyr)
@@ -48,7 +49,13 @@ df <- fread(wf) %>% mutate(
   Date = as.Date(Date, "%d/%m/%y"), 
   `Device type` = if_else(`Device type` == 'Unknown', "Android app", `Device type`),
   `Browser family` = if_else(`Browser family` == 'other', "Android app", `Browser family`)
-  ) 
+  ) %>% 
+  mutate(`Device group` = case_when(
+    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
+    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
+    `Device type` == 'Android app' ~ 'Android app',
+    `Device type` == 'Desktop' ~ 'Desktop'
+  ))
   
 df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket', 'Sales'))
 
@@ -81,7 +88,7 @@ df %>% filter(`Event type` %in% c('Sales', 'Basket')) %>%
 
 ```
 
-The purchasing spans from 9 o'clock to 23 o'clock. The most popular time for sales id 20 o'clock.
+The purchasing spans from 9 o'clock to 23 o'clock. The most popular time for sales is 20 o'clock.
 
 ```{r}
 
@@ -94,10 +101,11 @@ df %>%
   stat_peaks(color = "red", geom = "rug", sides = "b", ignore_threshold = 0.99)
 
 ```
-While product visiting, basketing and purchasing happens mostly at 20 o'clock, listing is uniformly distrubted across day with maximum at 16 o'clock. 
+ 
+Product visiting, basketing and purchasing happens mostly at 20 o'clock, while listing is uniformly distrusted across day with maximum at 16 o'clock. 
 
 
-
+**Recommendation:** the perfect timing for advertisment is between 16 to 20 o'clock  
 
 
 # 2. Browser
@@ -111,14 +119,39 @@ df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser fam
     Usage < 100  ~ 'small',
     Usage > 100 ~ `Browser family`)) %>% 
   filter(`Browser family` != 'small') %>% 
-  ggplot(aes(y = Usage, x = reorder(`Browser family`, Usage), label = Usage , fill = reorder(`Browser family`, Usage))) + 
+  ggplot(aes(y = Usage, x = reorder(`Browser family`, Usage), label = Usage , fill = reorder(`Browser family`, desc(Usage)))) + 
   geom_col() +
   geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
   ggtitle('Distribution of browser families') + 
-  labs(x = "Number of sales", fill = 'Browser family')  + 
+  labs(y = "Number of sales", x = 'Browser family', fill = 'Browser family')  + 
   theme(plot.title = element_text(hjust = 0.5))
 ```
-The majority of actions happens through Chrome, Safari and Firefox,  
+Let's also observe browser usage through different device groups.
+
+```{r}
+ df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser family` != 'other') %>%
+  group_by(`Browser family`, `Device group`) %>% 
+  summarise(Usage = n()) %>% arrange(desc(Usage)) %>% 
+  mutate(`Browser family` = case_when(
+    Usage < 90  ~ 'small',
+    Usage > 90 ~ `Browser family`)) %>% 
+  filter(`Browser family` != 'small')  %>% 
+  ggplot(aes(x = Usage, y = reorder(`Browser family`, Usage), label = Usage , fill = reorder(`Browser family`, desc(Usage)))) + 
+  geom_col() +
+  geom_text( position = position_dodge(width = 0.9)) + 
+  facet_wrap(~`Device group`) +
+  ggtitle('Distribution of browser families') + 
+  labs(x = "Number of sales", y = 'Browser family', fill = 'Browser family')  + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+```
+The majority of sales actions happens through:
+
+ - Chrome, Safari and Firefox for desktop; 
+ - Mobile Safari and Chrome Mobile for smartphones;
+ - Mobile Safari and Chrome for Tablets. 
+
 
 ```{r, include=FALSE}
 df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser family` != 'other') %>%
@@ -147,8 +180,9 @@ df  %>% filter( `Browser family` != 'NULL', `Browser family` != 'other') %>%
 
 Some problems with basketing in Android App.
 
-**Recommendation:** technical specialist should check and resolve problems with adding a product in a basket in Android app
+**Recommendation:** 
 
+  1. 
 
 ```{r}
 
