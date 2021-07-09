@@ -43,10 +43,11 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
 wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
 #df <- fread('unzip -cq C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.zip') 
 df <- fread(wf) %>% mutate(
-  Datetime =as.POSIXct(as.numeric(as.character(Timestamp)), origin="1970-01-01", tz="GMT"), 
+  Datetime =as.POSIXct(as.numeric(as.character (Timestamp)), origin="1970-01-01", tz="GMT"), 
                            `Product Price` = as.numeric(`Product Price`), 
                            `Product quantity` = as.numeric(`Product quantity`),
   Date = as.Date(Date, "%d/%m/%y"), 
+  Weekdays = weekdays(Date),
   `Device type` = if_else(`Device type` == 'Unknown', "Android app", `Device type`),
   `Browser family` = if_else(`Browser family` == 'other', "Android app", `Browser family`)
   ) %>% 
@@ -58,6 +59,8 @@ df <- fread(wf) %>% mutate(
   ))
   
 df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket', 'Sales'))
+df$`Existing client` = as.factor(df$`Existing client`)
+df$`Weekdays` = factor(df$`Weekdays`, levels = c('понедельник','вторник','среда','четверг','пятница','суббота','воскресенье')) 
 
 
 ```
@@ -73,24 +76,27 @@ table(df$`Environment`)
 
 
 
-# 1. Hours
+# 1. Timing
+## 1.1. Hour
 
 Let's observe at what time sales occur
 
-```{r}
+```{r, echo=FALSE}
 df %>% filter(`Event type` %in% c('Sales', 'Basket')) %>% 
   group_by(Hours, `Event type`) %>% 
   mutate(Revenue = sum(`Product Price` * `Product quantity`), na.rm = TRUE) %>% 
   ggplot(aes(x = Hours, y = Revenue )) + geom_line() + 
   facet_grid(~`Event type`) +
   stat_peaks(colour = "red",  ignore_threshold = 0.99)  +
-  stat_peaks(color = "red", geom = "rug", sides = "b", ignore_threshold = 0.99)
+  stat_peaks(color = "red", geom = "rug", sides = "b", ignore_threshold = 0.99)+
+  ggtitle('Distribution of basket and sale events over a day') + theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5))
 
 ```
 
 The purchasing spans from 9 o'clock to 23 o'clock. The most popular time for sales is 20 o'clock.
 
-```{r}
+```{r, echo=FALSE}
 
 df %>% 
   group_by(Hours, `Event type`) %>% 
@@ -98,19 +104,45 @@ df %>%
   ggplot(aes(x = Hours, y = Visits )) + geom_line() + 
   facet_grid(~`Event type`) +
   stat_peaks(colour = "red",  ignore_threshold = 0.99)  +
-  stat_peaks(color = "red", geom = "rug", sides = "b", ignore_threshold = 0.99)
+  stat_peaks(color = "red", geom = "rug", sides = "b", ignore_threshold = 0.99) +
+  ggtitle('Distribution of events over a day') + theme_minimal()  +
+  theme(plot.title = element_text(hjust = 0.5))
 
 ```
+
  
 Product visiting, basketing and purchasing happens mostly at 20 o'clock, while listing is uniformly distrusted across day with maximum at 16 o'clock. 
 
 
 **Recommendation:** the perfect timing for advertisment is between 16 to 20 o'clock  
 
+## 1.2. Day of week
+
+```{r, echo=FALSE}
+df %>% filter(`Event type` == 'Sales') %>% 
+  group_by(Weekdays) %>% 
+  summarise(Visits = n()) %>% 
+  ggplot(aes(x = Weekdays, y = Visits, fill =  Weekdays, label = Visits)) + 
+  geom_col() + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
+  ggtitle('Distribution of sale events over an average week') + 
+  labs(y = "Number of sales", x = 'Weekdays', fill = 'Number of sales')  + theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5))  
+
+```
+```{r}
+# proof
+
+#1. упорядочить по дням
+#2. ти тест или анова чтобы доказать значимость различий между днями.
+#m <- lm()
+```
+
+**Recommendation:** the most sailing days are Friday, Saturday and Sunday, so advertising campaign could be more effective in this days.
+
 
 # 2. Browser
 
-```{r}
+```{r, echo=FALSE}
 
 df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser family` != 'other') %>%
   group_by(`Browser family`) %>% 
@@ -123,12 +155,13 @@ df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser fam
   geom_col() +
   geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
   ggtitle('Distribution of browser families') + 
-  labs(y = "Number of sales", x = 'Browser family', fill = 'Browser family')  + 
-  theme(plot.title = element_text(hjust = 0.5))
+  labs(y = "Number of sales", x = 'Browser family', fill = 'Browser family')  + theme_minimal()  + 
+  theme(plot.title = element_text(hjust = 0.5))  
 ```
+
 Let's also observe browser usage through different device groups.
 
-```{r}
+```{r, echo=FALSE}
  df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser family` != 'other') %>%
   group_by(`Browser family`, `Device group`) %>% 
   summarise(Usage = n()) %>% arrange(desc(Usage)) %>% 
@@ -141,12 +174,14 @@ Let's also observe browser usage through different device groups.
   geom_text( position = position_dodge(width = 0.9)) + 
   facet_wrap(~`Device group`) +
   ggtitle('Distribution of browser families') + 
-  labs(x = "Number of sales", y = 'Browser family', fill = 'Browser family')  + 
+  labs(x = "Number of sales", y = 'Browser family', fill = 'Browser family')   + theme_minimal()   + 
   theme(plot.title = element_text(hjust = 0.5))
 
 
 ```
-The majority of sales actions happens through:
+**Recommendation:**
+
+Different browsers render content in their own way. So during advertisement campaign company should adjust to the following browsers as soon as they affect the majority of sales:
 
  - Chrome, Safari and Firefox for desktop; 
  - Mobile Safari and Chrome Mobile for smartphones;
@@ -164,7 +199,8 @@ df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser fam
 list_bro <- as.list(list_bro$`Browser family`)
 ```
 
-```{r}
+```{r, echo=FALSE}
+# position dodge?
 
 df  %>% filter( `Browser family` != 'NULL', `Browser family` != 'other') %>%
   group_by(`Browser family`, `Event type`) %>% 
@@ -174,104 +210,139 @@ df  %>% filter( `Browser family` != 'NULL', `Browser family` != 'other') %>%
   geom_col() +
   geom_text( position = position_dodge(width = 0.9)) +
   ggtitle('Distribution of browser families over actions') + 
-  labs(x = "Number of sales", fill = 'Browser family')  + facet_wrap(~`Event type`)+
-  theme(plot.title = element_text(hjust = 0.5))
-```
-
-Some problems with basketing in Android App.
-
-**Recommendation:** 
-
-  1. 
-
-```{r}
-
-df  %>% 
-  mutate(Device_source = case_when(
-    `Device type` %in% c('Android - Smartphone', 'iPhone', 'Mobile - Other') ~ 'Smartphone',
-    `Device type` %in% c('Android - Tablet', 'iPad') ~ 'Tablet',
-    `Device type` == 'Android app' ~ 'Android app',
-    `Device type` == 'Desktop' ~ 'Desktop'
-  )) %>% 
-  filter(`Event type` == 'Sales') %>% 
-
-  group_by(`Browser family`, Device_source) %>% summarise(Usage = n()) %>% 
-    mutate(`Browser family` = case_when(
-    Usage < 100  ~ 'small',
-    Usage > 100 ~ `Browser family`)) %>% 
-  filter(`Browser family` != 'small') %>% 
-  ggplot(aes(x = Usage, y = `Browser family`, fill = `Browser family`)) + geom_col() + facet_grid(~Device_source)
-
+  labs(x = "Number of sales", fill = 'Browser family')  + facet_wrap(~`Event type`)+ theme_minimal()  +
+  theme(plot.title = element_text(hjust = 0.5))   
 ```
 
 
 # 2. User location
 
-```{r}
-df %>% filter(`User location` != "Unknown") %>%  group_by(`User location`, Date) %>% 
+```{r, echo=FALSE}
+df %>% filter(`User location` != "Unknown") %>%  filter(`Event type` == 'Sales') %>% 
+  group_by(`User location`, Date) %>% 
   mutate(Usage = n()) %>% 
-  ggplot(aes(x = Date, y = Usage)) + geom_line() + facet_wrap(~`User location`) +  stat_smooth(
-    color = "#FC4E07", fill = "#FC4E07",
-    method = "lm"
-  )
+  ggplot(aes(x = Date, y = Usage, color = `User location`)) + geom_col(show.legend = FALSE) + facet_wrap(~`User location`)  +
+  ggtitle('Distribution of browser families over actions') + theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))   
+```
+
+```{r, echo=FALSE}
+df %>% filter(`User location` != "Unknown", `Event type` == 'Sales') %>%  
+  group_by(`User location`) %>% 
+  summarise(Usage = n()) %>% 
+  ggplot(aes(x = `User location`, y = Usage, fill = `User location`, label = Usage)) +
+  geom_col() +
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5)   + 
+  theme_minimal() + ggtitle('Annual number of sales actions from inland and outland') + 
+  theme(plot.title = element_text(hjust = 0.5))
 
 ```
+
+```{r, echo=FALSE}
+df %>% filter(`User location` != "Unknown", `Event type` == 'Sales') %>%  
+  group_by(`User location`, `Product category`) %>% 
+  summarise(Usage = n()) %>% 
+  ggplot(aes(x = `User location`, y = Usage, fill = `User location`, label = Usage)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5)   + 
+  facet_grid(~`Product category`) +
+  theme_minimal() + ggtitle('Annual number of sales actions from inland and outland') + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+**Recommendation:** only 10 % of sales occur from outside, so outside advertisment should not be a main focus of a campaign.
 
 
 # 3. Existing client
 
-```{r}
+```{r, echo=FALSE}
 
-df %>% 
-ggplot(aes(x = `Existing client`, fill = `Existing client`)) + geom_histogram(stat="count") #+ facet_grid(~Device_source)
+df %>% filter(`Event type` == 'Sales') %>%  
+  group_by(`Existing client`) %>% 
+  summarise(Usage = n()) %>% 
+  ggplot(aes(x = `Existing client`, y = Usage, fill = `Existing client`, label = Usage)) +
+  geom_col(show.legend = FALSE) +
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5)   + 
+  theme_minimal() + ggtitle('Annual number of sales actions from new and exising clients') + 
+  theme(plot.title = element_text(hjust = 0.5)) + scale_fill_hue(name = "Type of client", labels=c("New", "Existing")) + scale_x_discrete(labels=c("New", "Existing"))
 ```
 
-```{r}
+```{r, echo=FALSE}
 
-df %>%  filter(`Event type` == 'Sales') %>% group_by(`Cross-device user ID`) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% group_by(`Existing client`) %>% summarise(`Total Revenue` = sum(Revenue), `Mean Revenue` = mean(Revenue),`Median Revenue` = median(Revenue), `Mean Product Quantity` = mean(`Product quantity`)) #%>% 
-#ggplot(aes(x = `Existing client`, y = Revenue)) + geom_boxplot() #+ facet_grid(~Device_source)
+df %>%  filter(`Event type` == 'Sales') %>% group_by(`Cross-device user ID`) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% group_by(`Existing client`) %>% summarise(`Total Revenue` = sum(Revenue), `Mean Revenue` = mean(Revenue),`Median Revenue` = median(Revenue), `Mean Product Quantity` = mean(`Product quantity`)) 
 ```
-```{r}
+```{r, echo=FALSE}
 df %>%  filter(`Event type` == 'Sales') %>% group_by(`Existing client`, Date) %>% 
   mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
-  ggplot(aes(x = Date, y = Revenue))+ geom_line() + facet_wrap(~`Existing client`)
+  ggplot(aes(x = Date, y = Revenue, fill = `Existing client`)) + geom_col(show.legend = FALSE) + 
+  facet_wrap(~`Existing client`, labeller = as_labeller(c(`0` = "New", `1` = "Existing"))) +
+  ggtitle('Distribution of sales over type of purchasers') + 
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))   
 ```
-Exisiting clients buy significantly more in Winter
+
+New clients buy significantly more 
 
 # 3. Product category
-
+, echo=FALSE
 ```{r}
 df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`) %>% 
-  mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
-  ggplot(aes(x =`Product category`, y = Revenue))+ geom_col()
+  summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
+  ggplot(aes(x =`Product category`, y = Revenue, label = Revenue, fill= `Product category`))+   
+  geom_col() +  
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5)   + 
+  theme_minimal() + ggtitle('Annual Revenue for product categories') + 
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-```{r}
+```{r, echo=FALSE}
 df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`) %>% 
+  summarise(Quantity = sum(`Product quantity`)) %>% 
+  ggplot(aes(x =`Product category`, y = Quantity, fill =`Product category`, label = Quantity))+  
+  geom_col() +  
+  geom_text(position = position_dodge(width = 0.9), vjust = -0.5)   + 
+  theme_minimal() + ggtitle('Annual quantity of saled products') + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r, echo=FALSE}
+df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %>% 
   mutate(Quantity = sum(`Product quantity`)) %>% 
-  ggplot(aes(x =`Product category`, y = Quantity))+ geom_col()
+  ggplot(aes(x = Date, y = Quantity, color = `Product category`))+ 
+  geom_col(show.legend = FALSE) + facet_wrap(~`Product category`) + 
+  ggtitle('Annual sales events by  product category') + 
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-
-```{r}
-df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %>% mutate(Quantity = sum(`Product quantity`)) %>% 
-  ggplot(aes(x = Date, y = Quantity))+ geom_line() + facet_wrap(~`Product category`)
+```{r, echo=FALSE}
+df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %>% 
+  mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
+  ggplot(aes(x = Date, y = Revenue, color = `Product category`))+ 
+  geom_col(show.legend = FALSE) + facet_wrap(~`Product category`)+ 
+  ggtitle('Annual revenue by product category') + 
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
-```{r}
-df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
-  ggplot(aes(x = Date, y = Revenue))+ geom_line() + facet_wrap(~`Product category`)
-```
+**Recommendations:**
 
+  1. packages and small item were saled in the same quantity, but revenue from packages is highest among all products and by two times higher than from small items 
+  2. Advertising of two leading products, packages and small items, should give the highest revenue.
+  3. In November-December promotion of  packages and medium items is preferable.
+  4. In April promotion of  packages and small items is preferable.
+  
+  
 # 5. Sales funnel
 
-```{r}
+```{r, echo=FALSE}
 df %>% 
   group_by(`Event type`) %>% 
   summarise(Visits = n()) 
 ```
 
-```{r}
+```{r, echo=FALSE}
 tab <- df %>% 
   group_by(`Cross-device user ID`) %>%   
   summarise(`Number of actions` = n_distinct(`Event type`), `Listed?` = if_else('Listing' %in% `Event type`, 1, 0), `Sales?` = if_else('Sales' %in% `Event type`, 1, 0)) %>% filter(`Listed?` != 0) %>% group_by(`Sales?`) %>%  summarise(`Number of those who listed` = n())
