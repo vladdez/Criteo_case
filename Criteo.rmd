@@ -109,7 +109,7 @@ df_rev
 ```{r}
 ggplot(df_rev, aes(x = Date, y = Revenue )) + 
   geom_col(alpha = 0.5) + 
-  ggtitle('The daily revenue change over year') + 
+  ggtitle('The daily revenue change over the year') + 
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 ```
@@ -129,7 +129,7 @@ ggplot(df_rev, aes(x = Date, y = Revenue )) +
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
   ) + 
-  ggtitle('The daily revenue change over year') +  
+  ggtitle('The daily revenue change over the year') +  
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 
@@ -155,7 +155,7 @@ The figures above demonstrate the revenue change over a year. There are:
   1. There is a high demand for product in October, December and in the end of April. Advertising in a mentioned period is more preferable for obtaining a revenue; 
   2. On the other hand, there is a lower demand in summer month, so the company should decrease spendings on campaign in this period.
   
-## 2.2 Does problems with androids affected graph over year?
+## 2.2 Did problems with android app affect graph over the year?
 
 ```{r, echo=FALSE}
 df %>% 
@@ -183,7 +183,7 @@ ggplot(df_rev1, aes(x = Date, y = Revenue )) +
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
   ) + 
-  ggtitle('The daily revenue change over year (apps excluded)') +  
+  ggtitle('The daily revenue change over the year (apps excluded)') +  
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 
@@ -210,7 +210,7 @@ df %>%
      stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
-  ) + ggtitle('Annual sales via different devices') + theme_minimal() +  theme(plot.title = element_text(hjust = 0.5))
+  ) + ggtitle('Annual sales via different devices') + theme_minimal() +  theme(plot.title = element_text(hjust = 0.5), , axis.text.x  = element_text(angle = 90), axis.title.x = element_text(hjust = 2), axis.ticks = element_line(size = 1)) 
 ```
 
 
@@ -256,7 +256,7 @@ df %>%
 df %>% 
   filter(`Event type` == 'Sales') %>% 
  group_by(`Device group`) %>%   summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>%     arrange(desc(Revenue)) %>%
-  ggplot(aes(x = reorder(`Device group`, Revenue), y = Revenue, label = Revenue, fill = reorder(`Device group`, Revenue))) + 
+  ggplot(aes(x = reorder(`Device group`, Revenue), y = Revenue, label = Revenue, fill = reorder(`Device group`, desc(Revenue)))) + 
   geom_col() + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
   theme_minimal() + ggtitle('Annual sales in € via different groups of devices') + 
   labs(x = "Device groups", fill = "Device groups") + 
@@ -270,7 +270,7 @@ Let's discover is this difference is significant?
 a <- df %>% 
   filter(`Event type` == 'Sales') %>%  group_by(Date, `Device group`) %>% 
   mutate(Revenue = `Product Price` * `Product quantity`) %>% 
-  dplyr::select(`Device group`, Revenue)
+  dplyr::select(`Device group`, Revenue, Date)
 a$`Device group` <- factor(a$`Device group` , levels = c('Desktop', 'Tablet', 'Smartphone', 'Android app'))
 tab_model(lm(data = a, Revenue ~ `Device group`))
 ```
@@ -278,10 +278,10 @@ tab_model(lm(data = a, Revenue ~ `Device group`))
 ```{r, echo=FALSE}
 
 my_comparisons <- list( c("Smartphone", "Tablet"),c("Smartphone", "Android app"), 
-                        c("Desktop", "Android app"),c("Tablet", "Android app") , c("Desktop", "Smartphone"),  c("Desktop", "Tablet") )
+                        c("Desktop", "Android app"),c("Tablet", "Android app") , c("Desktop", "Smartphone"),  c("Desktop", "Tablet"))
 ggboxplot(a, x = "Device group", y = "Revenue", color = "Device group", palette = "jco")+ 
   stat_compare_means(comparisons = my_comparisons, label = "p.signif", ref.group = "0.5")+ # Add pairwise comparisons p-value
-  stat_compare_means( label.y = 800)                    # Pairwise comparison against reference
+  stat_compare_means( label.y = 800) +   ggtitle('Annual mean sales in € via different groups of devices') + theme(plot.title = element_text(hjust = 0.5))           # Pairwise comparison against reference
 ```
 
 
