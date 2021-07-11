@@ -1,5 +1,5 @@
 ---
-title: "Recommendations"
+title: "Recommendations for Criteo case study"
 author: "Vladimir Mikheev"
 date: "06 07 2021"
 output:
@@ -25,7 +25,9 @@ library(ggplot2)
 library(tidyr)
 library(arm)
 library(ggpmisc)
-
+library(formattable)
+library(parameters)
+library(sjPlot)
 
 remove_outliers <- function(x, na.rm = TRUE, ...) {
   qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
@@ -35,18 +37,21 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
   y[x > (qnt[2] + H)] <- NA
   y
 }
+#Sys.setlocale("LC_ALL", "English")
+Sys.setlocale("LC_ALL", "en_GB.UTF-8")
 
 ```
 
 
 ```{r, include=FALSE}
-wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
+#wf <- 'C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.csv'
+wf <- "/home/vovan/Downloads/Criteo_case/ecommerce_dataset.csv"
 #df <- fread('unzip -cq C:/Users/Vladimir/YandexDisk/Достижения/Criteo/ecommerce_dataset.zip') 
 df <- fread(wf) %>% mutate(
   Datetime =as.POSIXct(as.numeric(as.character (Timestamp)), origin="1970-01-01", tz="GMT"), 
                            `Product Price` = as.numeric(`Product Price`), 
                            `Product quantity` = as.numeric(`Product quantity`),
-  Date = as.Date(Date, "%d/%m/%y"), 
+  Date =  as.Date(Date, "%d/%m/%y"), 
   Weekdays = weekdays(Date),
   `Device type` = if_else(`Device type` == 'Unknown', "Android app", `Device type`),
   `Browser family` = if_else(`Browser family` == 'other', "Android app", `Browser family`)
@@ -60,7 +65,7 @@ df <- fread(wf) %>% mutate(
   
 df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket', 'Sales'))
 df$`Existing client` = as.factor(df$`Existing client`)
-df$`Weekdays` = factor(df$`Weekdays`, levels = c('понедельник','вторник','среда','четверг','пятница','суббота','воскресенье')) 
+df$`Weekdays` = factor(df$`Weekdays`, levels = c('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')) 
 
 
 ```
@@ -119,25 +124,42 @@ Product visiting, basketing and purchasing happens mostly at 20 o'clock, while l
 ## 1.2. Day of week
 
 ```{r, echo=FALSE}
-df %>% filter(`Event type` == 'Sales') %>% 
-  group_by(Weekdays) %>% 
+df %>% filter(`Event type` == c('Product', 'Sales')) %>% 
+  group_by(Weekdays, `Event type`) %>% 
   summarise(Visits = n()) %>% 
-  ggplot(aes(x = Weekdays, y = Visits, fill =  Weekdays, label = Visits)) + 
-  geom_col() + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
+  ggplot(aes(x = Weekdays, y = Visits, fill =  `Event type`, label = Visits)) + 
+  geom_bar(stat="identity", position ="dodge") + geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
   ggtitle('Distribution of sale events over an average week') + 
   labs(y = "Number of sales", x = 'Weekdays', fill = 'Number of sales')  + theme_minimal() + 
   theme(plot.title = element_text(hjust = 0.5))  
 
 ```
-```{r}
-# proof
 
-#1. упорядочить по дням
-#2. ти тест или анова чтобы доказать значимость различий между днями.
-#m <- lm()
+Does these differences between days are significant? 
+
+```{r, echo=FALSE}
+a <- df %>% filter(`Event type` %in% c('Product', 'Sales')) %>% mutate(
+  week_part = case_when(
+  Weekdays %in% c('Monday','Tuesday','Wednesday','Thursday') ~ 0, 
+  Weekdays %in% c('Friday','Saturday','Sunday') ~ 1), 
+  `Event type` = if_else(`Event type` == 'Product', 0, 1 )) %>%  
+  dplyr::select(week_part, `Event type`)
+
+b <- df %>% filter(`Event type` == c('Product', 'Sales')) %>% mutate(
+   week_part = case_when(
+  Weekdays == 'Thursday' ~ 0, 
+  Weekdays == 'Friday' ~ 1),  
+  `Event type` = if_else(`Event type` == 'Product', 0, 1 )) %>%  
+  dplyr::select(week_part, `Event type`)
+
+parameters(chisq.test(table(a)))
+parameters(chisq.test(table(b)))
 ```
 
-**Recommendation:** the most sailing days are Friday, Saturday and Sunday, so advertising campaign could be more effective in this days.
+**Recommendation:** 
+
+  1. The most sailing days are Friday, Saturday and Sunday;
+  2. However, chi-square demonstrates that there is no significant difference between these days, so we can favor any of these days for advetisement campaign.
 
 
 # 2. Browser
@@ -179,6 +201,8 @@ Let's also observe browser usage through different device groups.
 
 
 ```
+
+
 **Recommendation:**
 
 Different browsers render content in their own way. So during advertisement campaign company should adjust to the following browsers as soon as they affect the majority of sales:
@@ -223,8 +247,19 @@ df %>% filter(`User location` != "Unknown") %>%  filter(`Event type` == 'Sales')
   mutate(Usage = n()) %>% 
   ggplot(aes(x = Date, y = Usage, color = `User location`)) + geom_col(show.legend = FALSE) + facet_wrap(~`User location`)  +
   ggtitle('Distribution of browser families over actions') + theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5))   
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x  = element_text(angle = 90), axis.title.x = element_text(hjust = 2), axis.ticks = element_line(size = 1))   
 ```
+```{r, echo=FALSE}
+a <-df %>% filter(`User location` != "Unknown") %>%  filter(`Event type` == 'Sales') %>% 
+  group_by(`User location`, Date) %>% 
+  mutate(Usage = n()) %>% dplyr::select(`Date`, `User location`, Usage) 
+
+tab_model(lm(data = a, Usage ~ `User location`))
+
+```
+
+The mean daily number of visit from inland is higher by 57 times than outside.
+
 
 ```{r, echo=FALSE}
 df %>% filter(`User location` != "Unknown", `Event type` == 'Sales') %>%  
@@ -238,21 +273,9 @@ df %>% filter(`User location` != "Unknown", `Event type` == 'Sales') %>%
 
 ```
 
-```{r, echo=FALSE}
-df %>% filter(`User location` != "Unknown", `Event type` == 'Sales') %>%  
-  group_by(`User location`, `Product category`) %>% 
-  summarise(Usage = n()) %>% 
-  ggplot(aes(x = `User location`, y = Usage, fill = `User location`, label = Usage)) +
-  geom_col(show.legend = FALSE) +
-  geom_text(position = position_dodge(width = 0.9), vjust = -0.5)   + 
-  facet_grid(~`Product category`) +
-  theme_minimal() + ggtitle('Annual number of sales actions from inland and outland') + 
-  theme(plot.title = element_text(hjust = 0.5))
-```
 
 
-
-**Recommendation:** only 10 % of sales occur from outside, so outside advertisment should not be a main focus of a campaign.
+**Recommendation:** only 10 % of sales occur from outside and mean daily, so outside advertisment should not be a main focus of a campaign.
 
 
 # 3. Existing client
@@ -271,8 +294,9 @@ df %>% filter(`Event type` == 'Sales') %>%
 
 ```{r, echo=FALSE}
 
-df %>%  filter(`Event type` == 'Sales') %>% group_by(`Cross-device user ID`) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% group_by(`Existing client`) %>% summarise(`Total Revenue` = sum(Revenue), `Mean Revenue` = mean(Revenue),`Median Revenue` = median(Revenue), `Mean Product Quantity` = mean(`Product quantity`)) 
+df %>%  filter(`Event type` == 'Sales') %>% group_by(`Cross-device user ID`) %>% mutate(Revenue = `Product Price` * `Product quantity`) %>% group_by(`Existing client`) %>% summarise(`Total Revenue` = sum(Revenue), `Mean Revenue` = mean(Revenue),`Median Revenue` = median(Revenue), `Mean Product Quantity` = mean(`Product quantity`)) %>% formattable(pd = FALSE)
 ```
+
 ```{r, echo=FALSE}
 df %>%  filter(`Event type` == 'Sales') %>% group_by(`Existing client`, Date) %>% 
   mutate(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
@@ -286,8 +310,8 @@ df %>%  filter(`Event type` == 'Sales') %>% group_by(`Existing client`, Date) %>
 New clients buy significantly more 
 
 # 3. Product category
-, echo=FALSE
-```{r}
+
+```{r, echo=FALSE}
 df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`) %>% 
   summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
   ggplot(aes(x =`Product category`, y = Revenue, label = Revenue, fill= `Product category`))+   
@@ -314,7 +338,7 @@ df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %
   ggplot(aes(x = Date, y = Quantity, color = `Product category`))+ 
   geom_col(show.legend = FALSE) + facet_wrap(~`Product category`) + 
   ggtitle('Annual sales events by  product category') + 
-  theme(plot.title = element_text(hjust = 0.5))
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x  = element_text(angle = 90), axis.title.x = element_text(hjust = 2), axis.ticks = element_line(size = 1)) 
 ```
 
 ```{r, echo=FALSE}
@@ -323,7 +347,7 @@ df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %
   ggplot(aes(x = Date, y = Revenue, color = `Product category`))+ 
   geom_col(show.legend = FALSE) + facet_wrap(~`Product category`)+ 
   ggtitle('Annual revenue by product category') + 
-  theme(plot.title = element_text(hjust = 0.5))
+    theme(plot.title = element_text(hjust = 0.5), axis.text.x  = element_text(angle = 90), axis.title.x = element_text(hjust = 2), axis.ticks = element_line(size = 1)) + scale_y_continuous(labels = function(x) format(x, scientific = FALSE))
 ```
 
 **Recommendations:**
@@ -331,38 +355,37 @@ df %>%  filter(`Event type` == 'Sales') %>% group_by(`Product category`, Date) %
   1. packages and small item were saled in the same quantity, but revenue from packages is highest among all products and by two times higher than from small items 
   2. Advertising of two leading products, packages and small items, should give the highest revenue.
   3. In November-December promotion of  packages and medium items is preferable.
-  4. In April promotion of  packages and small items is preferable.
+  4. In April promotion of packages and small items is preferable.
   
-  
-# 5. Sales funnel
+<!-- # 5. Sales funnel -->
 
-```{r, echo=FALSE}
-df %>% 
-  group_by(`Event type`) %>% 
-  summarise(Visits = n()) 
-```
+<!-- ```{r, echo=FALSE} -->
+<!-- df %>%  -->
+<!--   group_by(`Event type`) %>%  -->
+<!--   summarise(Visits = n())  -->
+<!-- ``` -->
 
-```{r, echo=FALSE}
-tab <- df %>% 
-  group_by(`Cross-device user ID`) %>%   
-  summarise(`Number of actions` = n_distinct(`Event type`), `Listed?` = if_else('Listing' %in% `Event type`, 1, 0), `Sales?` = if_else('Sales' %in% `Event type`, 1, 0)) %>% filter(`Listed?` != 0) %>% group_by(`Sales?`) %>%  summarise(`Number of those who listed` = n())
-tab
+<!-- ```{r, echo=FALSE} -->
+<!-- tab <- df %>%  -->
+<!--   group_by(`Cross-device user ID`) %>%    -->
+<!--   summarise(`Number of actions` = n_distinct(`Event type`), `Listed?` = if_else('Listing' %in% `Event type`, 1, 0), `Sales?` = if_else('Sales' %in% `Event type`, 1, 0)) %>% filter(`Listed?` != 0) %>% group_by(`Sales?`) %>%  summarise(`Number of those who listed` = n()) -->
+<!-- tab -->
 
-(tab$`Number of those who listed`[2] *100) /  tab$`Number of those who listed`[1]
+<!-- (tab$`Number of those who listed`[2] *100) /  tab$`Number of those who listed`[1] -->
 
 
-tab <- df %>% 
-  group_by(`Cross-device user ID`) %>%   
-  summarise(`Number of actions` = n_distinct(`Event type`), `Product?` = if_else('Product' %in% `Event type`, 1, 0), `Sales?` = if_else('Sales' %in% `Event type`, 1, 0)) %>% filter(`Product?` != 0) %>% group_by(`Sales?`) %>%  summarise(`Number of those who visited product page` = n())
-tab
+<!-- tab <- df %>%  -->
+<!--   group_by(`Cross-device user ID`) %>%    -->
+<!--   summarise(`Number of actions` = n_distinct(`Event type`), `Product?` = if_else('Product' %in% `Event type`, 1, 0), `Sales?` = if_else('Sales' %in% `Event type`, 1, 0)) %>% filter(`Product?` != 0) %>% group_by(`Sales?`) %>%  summarise(`Number of those who visited product page` = n()) -->
+<!-- tab -->
 
-(tab$`Number of those who visited product page`[2] *100) /  tab$`Number of those who visited product page`[1]
-```
+<!-- (tab$`Number of those who visited product page`[2] *100) /  tab$`Number of those who visited product page`[1] -->
+<!-- ``` -->
 
-That means that
+<!-- That means that -->
 
-  1. Among whose who listed only 17% purchased a product, while among those who visited product page - 19%. Majority of shoppers do not list and navigate directly to the required product. 
-  2. Кажется нужен пивалью
+<!--   1. Among whose who listed only 17% purchased a product, while among those who visited product page - 19%. Majority of shoppers do not list and navigate directly to the required product.  -->
+<!--   2. Кажется нужен пивалью -->
 
 
 
