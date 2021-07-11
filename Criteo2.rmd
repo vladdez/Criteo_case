@@ -176,7 +176,7 @@ df  %>% filter(`Event type` == 'Sales', `Browser family` != 'NULL', `Browser fam
   ggplot(aes(y = Usage, x = reorder(`Browser family`, Usage), label = Usage , fill = reorder(`Browser family`, desc(Usage)))) + 
   geom_col() +
   geom_text( position = position_dodge(width = 0.9), vjust = -0.5) +
-  ggtitle('Distribution of browser families') + 
+  ggtitle('Distribution of sale events over the browser families') + 
   labs(y = "Number of sales", x = 'Browser family', fill = 'Browser family')  + theme_minimal()  + 
   theme(plot.title = element_text(hjust = 0.5))  
 ```
@@ -195,7 +195,7 @@ Let's also observe browser usage through different device groups.
   geom_col() +
   geom_text( position = position_dodge(width = 0.9)) + 
   facet_wrap(~`Device group`) +
-  ggtitle('Distribution of browser families') + 
+  ggtitle('Distribution of sale events over the browser families') + 
   labs(x = "Number of sales", y = 'Browser family', fill = 'Browser family')   + theme_minimal()   + 
   theme(plot.title = element_text(hjust = 0.5))
 
@@ -246,7 +246,7 @@ df %>% filter(`User location` != "Unknown") %>%  filter(`Event type` == 'Sales')
   group_by(`User location`, Date) %>% 
   mutate(Usage = n()) %>% 
   ggplot(aes(x = Date, y = Usage, color = `User location`)) + geom_col(show.legend = FALSE) + facet_wrap(~`User location`)  +
-  ggtitle('Distribution of browser families over actions') + theme_minimal() +
+  ggtitle('The geography of sale events') + theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5), axis.text.x  = element_text(angle = 90), axis.title.x = element_text(hjust = 2), axis.ticks = element_line(size = 1))   
 ```
 ```{r, echo=FALSE}
@@ -272,7 +272,6 @@ df %>% filter(`User location` != "Unknown", `Event type` == 'Sales') %>%
   theme(plot.title = element_text(hjust = 0.5))
 
 ```
-
 
 
 **Recommendation:** only 10 % of sales occur from outside and mean daily, so outside advertisment should not be a main focus of a campaign.
