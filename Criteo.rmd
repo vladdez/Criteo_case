@@ -92,38 +92,50 @@ df$`Event type` = factor(df$`Event type`, levels=c('Listing', 'Product', 'Basket
 ```{r, include=FALSE}
 names(df)
 ```
+
 ```{r, include=FALSE}
 head(df)
 ```
 
-# 1. Salary change over time
+# 1. Revenue change over time
 
 Let's observe annual dynamics of revenue.
 
 ```{r, include=FALSE}
-df_rev <- df %>% filter(`Event type` == 'Sales') %>% group_by(Date) %>% summarise(Revenue = sum(`Product Price` * `Product quantity`))  
+df_rev <- df %>% filter(`Event type` == 'Sales') %>% group_by(Date) %>% summarize(Revenue = sum(`Product Price` * `Product quantity`))  
 df_rev
+```
+
+```{r}
+ggplot(df_rev, aes(x = Date, y = Revenue )) + 
+  geom_col(alpha = 0.5) + 
+  ggtitle('The daily revenue change over year') + 
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 
 ```{r, echo=FALSE}
-
-ggplot(df_rev, aes(x = Date, y = Revenue )) + geom_line() + 
-  stat_peaks(colour = "red", span = 1201, ignore_threshold = 0.92) + 
-  stat_peaks(geom = "text", colour = "red", 
-             vjust = -0.5, x.label.fmt = "%d.%m", span = 1201, ignore_threshold = 0.92)  +
  
-  stat_peaks(span = 1201, color = "red", geom = "rug", sides = "b", ignore_threshold = 0.92)+
-  stat_valleys(colour = "blue", span = 1801,  ignore_threshold = 0.95) + 
+ggplot(df_rev, aes(x = Date, y = Revenue )) + 
+  geom_col(alpha = 0.5)  + 
+  stat_peaks(colour = "#D55E00", ignore_threshold = 0.92) + 
+  stat_peaks(geom = "text", colour = "red", 
+             vjust = -0.5, x.label.fmt = "%d.%m",  ignore_threshold = 0.92)  +
+  stat_peaks(span = 1201, color = "#D55E00", geom = "rug", sides = "b", ignore_threshold = 0.92) +
+  stat_valleys(colour = "#0072B2",   ignore_threshold = 0.99)  +
+  stat_valleys(geom = "text", colour = "#0072B2",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m",   ignore_threshold = 0.99) + 
     stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
-  ) +
-  stat_valleys(geom = "text", colour = "blue",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m", span = 1801,  ignore_threshold = 0.99) + ggtitle('Revenue change over year') + theme_minimal()  +
+  ) + 
+  ggtitle('The daily revenue change over year') +  
+  theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 
 ```
-Th main characteristics of revenue over year.
+
+The main characteristics of revenue over year.
 
 ```{r, echo=FALSE}
 df_rev %>% ungroup() %>% summarize(mean = mean(Revenue), median = median(Revenue), min = min(Revenue),max = max(Revenue)) %>% formattable()
@@ -157,27 +169,29 @@ There is a lack of any information about sales and basketings in summer months f
 Also, there is no information on Product and Listing events in application at all. 
 
 ```{r, echo=FALSE}
-df_rev1 <- df %>% filter(`Event type` == 'Sales')  %>%  filter(`Device type` != 'Android app') %>% group_by(Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`))  
+ df_rev1 <- df %>% filter(`Event type` == 'Sales')  %>%  filter(`Device type` != 'Android app') %>% group_by(Date) %>% summarise(Revenue = sum(`Product Price` * `Product quantity`))  
 
-  ggplot(df_rev1, aes(x = Date, y = Revenue )) +
-  geom_line() + 
-  stat_peaks(colour = "red", span = 1201, ignore_threshold = 0.92) + 
+ggplot(df_rev1, aes(x = Date, y = Revenue )) + 
+  geom_col(alpha = 0.5)  + 
+  stat_peaks(colour = "#D55E00", ignore_threshold = 0.92) + 
   stat_peaks(geom = "text", colour = "red", 
-             vjust = -0.5, x.label.fmt = "%d.%m", span = 1201, ignore_threshold = 0.92)  +
- 
-  stat_peaks(span = 1201, color = "red", geom = "rug", sides = "b", ignore_threshold = 0.92)+
-  stat_valleys(colour = "blue", span = 1801,  ignore_threshold = 0.95) + 
+             vjust = -0.5, x.label.fmt = "%d.%m",  ignore_threshold = 0.92)  +
+  stat_peaks(span = 1201, color = "#D55E00", geom = "rug", sides = "b", ignore_threshold = 0.92) +
+  stat_valleys(colour = "#0072B2",   ignore_threshold = 0.99)  +
+  stat_valleys(geom = "text", colour = "#0072B2",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m",   ignore_threshold = 0.99) + 
     stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
-  ) +
-  stat_valleys(geom = "text", colour = "blue",  vjust = 1.5, hjust = 1,  x.label.fmt =  "%d.%m", span = 1801,  ignore_threshold = 0.99) + ggtitle('Revenue change over year') +
+  ) + 
+  ggtitle('The daily revenue change over year (apps excluded)') +  
+  theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5))
 
 ```
 
+
 ```{r, echo=FALSE}
-df_rev1 %>% ungroup() %>% summarize(mean = mean(Revenue), median = median(Revenue), min = min(Revenue),max = max(Revenue))
+df_rev1 %>% ungroup() %>% summarize(mean = mean(Revenue), median = median(Revenue), min = min(Revenue),max = max(Revenue)) %>% formattable()
 
 ```
 
@@ -190,9 +204,9 @@ Let's observe annual dynamics of revenue for every type of devices.
 
 ```{r, echo=FALSE}
 df %>% 
-  filter(`Event type` == 'Sales', `Device type` != 'Mobile - Other') %>% group_by(Date) %>% mutate(Revenue = sum(`Product Price` * `Product quantity`))   %>% filter(`Device type` != 'Unknown') %>% 
-  ggplot(aes(x = Date, y = Revenue, color = `Device type`)) +
-    geom_line() + facet_wrap(~`Device type`)+
+  filter(`Event type` == 'Sales', `Device type` != 'Mobile - Other') %>% group_by(Date, `Device type`)   %>% filter(`Device type` != 'Unknown') %>% summarise(Revenue = sum(`Product Price` * `Product quantity`)) %>% 
+  ggplot(aes(x = Date, y = Revenue, fill = `Device type`)) +
+    geom_col() + facet_wrap(~`Device type`)+
      stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess"
@@ -220,7 +234,7 @@ Let's group different devices on four types: smart phones, tablets, Desktop and,
 ```{r, echo=FALSE}
 df %>% 
   filter(`Event type` == 'Sales') %>% 
-  group_by(Date, `Device group`) %>% mutate(Visits = n()) %>%  
+  group_by(Date, `Device group`) %>% summarise(Visits = n()) %>%  
   ggplot(aes(x = Date, y = Visits, fill = `Device group`)) + 
   geom_col(axis.text.x=element_text(angle=45,vjust=0.5)) +  
   facet_wrap(~`Device group`) +
@@ -286,9 +300,9 @@ From the plot above, we can conclude that daily revenue of all Device types sign
 
 ```{r, echo=FALSE}
 df %>%  filter(`Event type` == 'Sales') %>% 
-  group_by(Date, Environment) %>% mutate(Visits = n()) %>%  
-  ggplot(aes(x = Date, y = Visits, color = `Environment`)) + 
-  geom_line() + 
+  group_by(Date, Environment) %>% summarise(Visits = n()) %>%  
+  ggplot(aes(x = Date, y = Visits, fill = `Environment`)) + 
+  geom_col() + 
   facet_wrap(~`Environment`) + stat_smooth(
     color = "#FC4E07", fill = "#FC4E07",
     method = "loess")
